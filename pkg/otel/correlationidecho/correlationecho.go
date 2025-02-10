@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package correlationidecho
 
 import (
+	"fmt"
 	"github.com/labstack/echo/v4"
 	"github.com/trustbloc/logutil-go/pkg/log"
 	"github.com/trustbloc/logutil-go/pkg/otel/api"
@@ -29,6 +30,10 @@ func Middleware() echo.MiddlewareFunc {
 			}()
 
 			ctx := req.Context()
+
+			for key, h := range c.Request().Header {
+				fmt.Printf("----- correlationidecho - Header: %s, value: %s\n", key, h)
+			}
 
 			correlationID := c.Request().Header.Get(api.CorrelationIDHeader)
 			if correlationID != "" {
