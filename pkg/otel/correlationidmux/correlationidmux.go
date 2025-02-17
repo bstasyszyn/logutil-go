@@ -40,27 +40,36 @@ func (tw *MuxMiddleware) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	correlationID := req.Header.Get(api.CorrelationIDHeader)
 	if correlationID != "" {
-		logger.Debugc(ctx, "Received HTTP request with correlation ID in header", log.WithCorrelationID(correlationID))
+		logger.Infoc(ctx, "Received HTTP request with correlation ID in header", log.WithCorrelationID(correlationID))
 
-		var err error
-		ctx, err = correlationid.SetWithValue(ctx, correlationID)
-		if err != nil {
-			logger.Warnc(ctx, "Failed to set correlation ID in context", log.WithError(err))
-		}
-	} else {
-		var err error
-		ctx, correlationID, err = correlationid.Set(ctx)
+		ctx2, err := correlationid.SetWithValue(ctx, correlationID)
 		if err != nil {
 			logger.Warnc(ctx, "Failed to set correlation ID in context", log.WithError(err))
 		} else {
-			logger.Debugc(ctx, "Generated new correlation ID since none was found in the HTTP header")
+			ctx = ctx2
+			req = req.WithContext(ctx)
+		}
+	} else {
+		ctx2, cID, err := correlationid.Set(ctx)
+		if err != nil {
+			logger.Warnc(ctx, "Failed to set correlation ID in context", log.WithError(err))
+		} else {
+			logger.Infoc(ctx, "Generated new correlation ID since none was found in the HTTP header")
+
+			ctx = ctx2
+			correlationID = cID
+			req = req.WithContext(ctx)
 		}
 	}
 
 	if correlationID != "" {
+		logger.Infoc(ctx, "Setting correlation ID span attribute", log.WithCorrelationID(correlationID))
+
 		span := trace.SpanFromContext(ctx)
 		span.SetAttributes(attribute.String(api.CorrelationIDAttribute, correlationID))
+	} else {
+		logger.Warnc(ctx, "No correlation ID set in span attribute")
 	}
 
-	tw.handler.ServeHTTP(w, req.WithContext(ctx))
+	tw.handler.ServeHTTP(w, req)
 }
